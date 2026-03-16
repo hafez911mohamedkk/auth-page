@@ -132,16 +132,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Send confirmation email (manual request - Supabase's default templates)
-    try {
-      await supabaseAdmin.auth.admin.resendEmail(authData.user.id, {
-        type: 'signup',
-        email,
-      })
-    } catch (emailError) {
-      console.error('Error sending confirmation email:', emailError)
-      // Don't fail the signup if email sending fails, but log it
-    }
+    // Note: Confirmation email is automatically sent by Supabase when email_confirm: false
+    // Make sure SMTP is configured in your Supabase project settings
 
     // Return success response
     return NextResponse.json(
