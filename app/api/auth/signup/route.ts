@@ -96,19 +96,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Send confirmation email
-    const { error: emailError } = await supabaseAdmin.auth.admin.sendRawUserConfirmationEmail(
-      authData.user.id,
-      {
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/confirm-email`,
-      }
-    )
-
-    if (emailError) {
-      console.error('Error sending confirmation email:', emailError)
-      // Don't fail the signup if email sending fails, but log it
-    }
-
     // Insert user data into customers table using service role (bypasses RLS)
     const { error: insertError } = await supabaseAdmin
       .from('customers')
@@ -127,6 +114,15 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       console.error('Error inserting customer data:', insertError)
       
+      // If it's a duplicate key error, the customer already exists
+      if (insertError.code === '23505') {
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+        return NextResponse.json(
+          { error: 'This email is already registered. Please use a different email or try logging in.' },
+          { status: 409 }
+        )
+      }
+      
       // Attempt to delete the auth user if insert fails
       await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
       
@@ -134,6 +130,17 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to create customer record. Please try again.' },
         { status: 400 }
       )
+    }
+
+    // Send confirmation email (manual request - Supabase's default templates)
+    try {
+      await supabaseAdmin.auth.admin.resendEmail(authData.user.id, {
+        type: 'signup',
+        email,
+      })
+    } catch (emailError) {
+      console.error('Error sending confirmation email:', emailError)
+      // Don't fail the signup if email sending fails, but log it
     }
 
     // Return success response
