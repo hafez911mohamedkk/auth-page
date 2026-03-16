@@ -48,6 +48,20 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
 
+    // Check if customer with this email already exists
+    const { data: existingCustomer, error: lookupError } = await supabaseAdmin
+      .from('customers')
+      .select('id, email')
+      .eq('email', email)
+      .single()
+
+    if (existingCustomer) {
+      return NextResponse.json(
+        { error: 'This email is already registered. Please use a different email or try logging in.' },
+        { status: 409 }
+      )
+    }
+
     // Sign up user in Supabase Auth
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
@@ -99,18 +113,9 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       console.error('Error inserting customer data:', insertError)
       
-      // Check if it's a duplicate email error
-      if (insertError.code === '23505' || insertError.message?.includes('duplicate')) {
-        // Attempt to delete the auth user if insert fails
-        await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
-        return NextResponse.json(
-          { error: 'This email is already registered. Please use a different email or try logging in.' },
-          { status: 409 }
-        )
-      }
-      
-      // Attempt to delete the auth user if insert fails for other reasons
+      // Attempt to delete the auth user if insert fails
       await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+      
       return NextResponse.json(
         { error: 'Failed to create customer record. Please try again.' },
         { status: 400 }
