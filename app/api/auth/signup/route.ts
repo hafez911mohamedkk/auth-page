@@ -98,10 +98,21 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       console.error('Error inserting customer data:', insertError)
-      // Attempt to delete the auth user if insert fails
+      
+      // Check if it's a duplicate email error
+      if (insertError.code === '23505' || insertError.message?.includes('duplicate')) {
+        // Attempt to delete the auth user if insert fails
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+        return NextResponse.json(
+          { error: 'This email is already registered. Please use a different email or try logging in.' },
+          { status: 409 }
+        )
+      }
+      
+      // Attempt to delete the auth user if insert fails for other reasons
       await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
       return NextResponse.json(
-        { error: 'Failed to create customer record' },
+        { error: 'Failed to create customer record. Please try again.' },
         { status: 400 }
       )
     }
