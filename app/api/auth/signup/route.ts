@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Sign up user in Supabase Auth
+    // Sign up user in Supabase Auth with email confirmation
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
         lastName,
         phone,
       },
+      email_confirm: false, // User must confirm their email
     })
 
     if (authError) {
@@ -93,6 +94,19 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to create user' },
         { status: 400 }
       )
+    }
+
+    // Send confirmation email
+    const { error: emailError } = await supabaseAdmin.auth.admin.sendRawUserConfirmationEmail(
+      authData.user.id,
+      {
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/confirm-email`,
+      }
+    )
+
+    if (emailError) {
+      console.error('Error sending confirmation email:', emailError)
+      // Don't fail the signup if email sending fails, but log it
     }
 
     // Insert user data into customers table using service role (bypasses RLS)
