@@ -49,13 +49,13 @@ export async function POST(request: NextRequest) {
     )
 
     // Check if customer with this email already exists
-    const { data: existingCustomer, error: lookupError } = await supabaseAdmin
+    const { data: existingCustomer } = await supabaseAdmin
       .from('customers')
       .select('id, email')
       .eq('email', email)
-      .single()
+      .limit(1)
 
-    if (existingCustomer) {
+    if (existingCustomer && existingCustomer.length > 0) {
       return NextResponse.json(
         { error: 'This email is already registered. Please use a different email or try logging in.' },
         { status: 409 }
@@ -131,9 +131,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-
-    // Note: Confirmation email is automatically sent by Supabase when email_confirm: false
-    // Make sure SMTP is configured in your Supabase project settings
 
     // Return success response
     return NextResponse.json(
