@@ -48,7 +48,21 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
 
-    // Sign up user in Supabase Auth
+    // Check if customer with this email already exists
+    const { data: existingCustomer } = await supabaseAdmin
+      .from('customers')
+      .select('id, email')
+      .eq('email', email)
+      .limit(1)
+
+    if (existingCustomer && existingCustomer.length > 0) {
+      return NextResponse.json(
+        { error: 'This email is already registered. Please use a different email or try logging in.' },
+        { status: 409 }
+      )
+    }
+
+    // Sign up user in Supabase Auth with email confirmation
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -57,6 +71,7 @@ export async function POST(request: NextRequest) {
         lastName,
         phone,
       },
+      email_confirm: false, // User must confirm their email
     })
 
     if (authError) {
@@ -98,10 +113,21 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       console.error('Error inserting customer data:', insertError)
+      
+      // If it's a duplicate key error, the customer already exists
+      if (insertError.code === '23505') {
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+        return NextResponse.json(
+          { error: 'This email is already registered. Please use a different email or try logging in.' },
+          { status: 409 }
+        )
+      }
+      
       // Attempt to delete the auth user if insert fails
       await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+      
       return NextResponse.json(
-        { error: 'Failed to create customer record' },
+        { error: 'Failed to create customer record. Please try again.' },
         { status: 400 }
       )
     }
